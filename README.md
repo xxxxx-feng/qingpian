@@ -10,13 +10,16 @@
 
 > 截图为无照片的初始界面，不包含个人照片。
 
-## Mac 版下载（无需安装 Python）
+## 下载桌面版（无需安装 Python）
 
-**[下载晴片 v0.1.0 · Apple Silicon Mac](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.0/Qingpian-0.1.0-macOS-arm64.zip)**
+| 系统 | 下载 | 使用方式 |
+| --- | --- | --- |
+| Windows 10 1809+ / Windows 11 · x64 | [Windows 64 位免安装版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.1/Qingpian-0.1.1-Windows-x64.zip) | 完整解压，进入“晴片”文件夹后双击 `晴片.exe` |
+| Apple Silicon Mac · macOS 14+ | [Mac 版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.1/Qingpian-0.1.1-macOS-arm64.zip) | 解压后双击 `晴片.app` |
 
-适用于 **M 系列芯片、macOS 14+**。解压后得到 `晴片.app`，放到桌面或“应用程序”中双击即可使用。也可在 [Release 页面](https://github.com/xxxxx-feng/qingpian/releases/tag/v0.1.0) 查看说明和 SHA-256 校验文件。
+当前版本为 **v0.1.1**，安装包与 SHA-256 校验文件均在 [Release 页面](https://github.com/xxxxx-feng/qingpian/releases/tag/v0.1.1)。两个系统均自带运行依赖，使用时无需安装 Python，照片在本机处理。
 
-此包未经过 Apple Developer ID 签名与 Apple 公证，其他 Mac 首次打开可能遇到系统来源验证提示。请确认下载来源后参考 [Apple 官方说明](https://support.apple.com/en-us/102445)。源码运行、Intel Mac 和自行构建说明见下文。
+Windows 包未做 Authenticode 数字签名，首次运行可能出现来源验证提示。Mac 包未经过 Apple Developer ID 签名与 Apple 公证，其他 Mac 首次打开可能遇到来源验证提示，详见 [Apple 官方说明](https://support.apple.com/en-us/102445)。源码运行、Intel Mac 和自行构建说明见下文。
 
 ## 目录
 
@@ -32,6 +35,7 @@
 - [项目结构](#项目结构)
 - [开发与测试](#开发与测试)
 - [构建 Mac 应用](#构建-mac-应用)
+- [构建 Windows 64 位应用](#构建-windows-64-位应用)
 - [常见问题](#常见问题)
 - [许可证与参考资料](#许可证与参考资料)
 
@@ -56,7 +60,7 @@
 - 使用 Pillow、NumPy、pillow-heif、PySide6 Essentials，完整版本范围见 [requirements.txt](requirements.txt)。
 - 已在 **Apple Silicon Mac、macOS 26.6.2、Python 3.12** 实际验证。
 - 本次 Mac 安装包以 macOS 14 为最低目标；构建时检查随附二进制的最低系统版本，实测系统为 macOS 26.6.2。其他构建请以实际依赖兼容性为准。
-- 源码采用跨平台 Qt 接口；Windows / Linux 的日常桌面使用尚未经过同等实机验证。
+- Windows x64 包在 GitHub 的 Windows Server 2022 环境构建，运行照片 / GUI 测试，并从最终 ZIP 解压实际程序，验证原生界面、JPG / HEIC 导入和自动批量导出；这些检查不等同于在所有 Windows 10 / 11 设备上的人工验收。Linux 日常桌面使用尚未经过同等验证。
 - HEIC 解码依赖 pillow-heif / libheif。使用对应平台的官方预编译轮子时通常无需另外安装 Qt 或 libheif。
 
 实际验证版本记录在 [requirements-tested.txt](requirements-tested.txt)。该文件也包含构建工具，主要用于重现当前 Mac 环境，不是跨平台通用的依赖锁文件。
@@ -93,7 +97,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe app.py
 ```
 
-此路径基于通用 Python / Qt 启动方式提供，Windows 桌面行为仍需实机验证。
+Windows 免安装版见上方下载区；源码运行与构建仍建议使用 Python 3.12。
 
 ### 启动时导入指定照片
 
@@ -225,6 +229,10 @@ qingpian/
 ├── requirements.txt           # 运行依赖版本范围
 ├── requirements-tested.txt    # 当前 Mac 验证环境
 ├── build_mac.py               # 构建自带依赖的 .app
+├── build_windows.py           # Windows x64 构建与 ZIP
+├── verify_windows.py          # 解压后实际 EXE 验证
+├── packaged_entry.py          # Windows 入口与打包自检
+├── requirements-windows-build.txt # Windows 构建环境
 └── 启动晴片.command           # Mac 双击启动器
 ```
 
@@ -288,8 +296,8 @@ QINGPIAN_SCREENSHOTS=/tmp/qingpian-screenshots \
 
 ```text
 dist/晴片.app
-dist/Qingpian-0.1.0-macOS-arm64.zip
-dist/Qingpian-0.1.0-SHA256SUMS.txt
+dist/Qingpian-0.1.1-macOS-arm64.zip
+dist/Qingpian-0.1.1-SHA256SUMS.txt
 ```
 
 构建出的应用自带 Python、Qt 与图像处理依赖，可以复制到桌面后双击使用，无需在目标机器上另装 Python。构建架构随当前 Python 与构建机器而定；Apple Silicon 构建不代表已生成 Intel 通用版本。
@@ -297,6 +305,27 @@ dist/Qingpian-0.1.0-SHA256SUMS.txt
 `VERSION` 记录发布版本。首发包固定使用 Qt for Python 6.8.3，以兼容最低目标系统。构建脚本写入应用版本、最低系统版本、构建依赖和源码提交；如果随附二进制要求高于 macOS 14，会终止构建。随后重新生成 ad-hoc 签名并检查完整性，最后输出 ZIP 与校验文件。Intel 构建的 ZIP 名称会使用 `x86_64`。
 
 `build/`、`dist/`、虚拟环境、生成的 `.spec` 和 `.local-archive/` 本地归档不提交到源码仓库。依赖许可文本在 `THIRD_PARTY_LICENSES.txt` 中，并随应用保留。升级构建依赖后，先在相同虚拟环境运行 `python generate_notices.py` 更新该文件；此收集步骤会从 GNU 官方 HTTPS 地址取得许可文本，通常的应用构建使用仓库中已收录的文本即可。
+
+## 构建 Windows 64 位应用
+
+必须在 **Windows x64、64 位 Python 3.12** 环境中构建；PyInstaller 不支持在 Mac 上直接交叉生成 Windows 可执行文件。
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-windows-build.txt
+.venv\Scripts\python -m unittest discover -s tests -v
+.venv\Scripts\python generate_notices.py
+.venv\Scripts\python build_windows.py
+.venv\Scripts\python verify_windows.py
+```
+
+输出 `dist/windows-x64/Qingpian-0.1.1-Windows-x64.zip`、对应的 `Windows-x64-SHA256SUMS.txt` 和 `windows-verification.json`。ZIP 中包含“晴片”文件夹，完整解压后双击 `晴片.exe`。
+
+仓库的 [Windows 构建工作流](.github/workflows/windows-build.yml) 可在 Actions 中手动运行，相关源码变动也会触发。它只读取仓库，构建测试通过后保存可下载的构建产物；发布到 Release 时使用这些已核验的 ZIP 与校验文件。构建测试使用临时生成的图片。
+
+`verify_windows.py` 检查 ZIP 与 SHA-256、PE 的 AMD64 架构，并执行解压目录内的实际 `.exe`，测试原生 Qt 平台、JPG / HEIC 预览、默认自动导出、sRGB 和原片不变。`packaged_entry.py` 的 `--packaged-self-test` 是构建检查入口，不影响日常双击使用。
+
+Python、Qt 与图像库的许可文本随包保留。`release-info.json` 记录版本、实际依赖、架构和源码提交。本包没有 Authenticode 数字签名。
 
 ## 常见问题
 

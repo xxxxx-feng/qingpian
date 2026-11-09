@@ -1,0 +1,13 @@
+# Windows x64 release environment; Python 3.12 (64-bit).
+Pillow==12.3.0
+numpy==2.5.4
+pillow-heif==1.8.1
+PySide6-Essentials==6.8.3
+shiboken6==6.8.3
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+altgraph==0.17.5
+packaging==26.3
+setuptools==84.2.1
+pefile==2024.8.26
+pywin32-ctypes==0.2.3
