@@ -9,6 +9,7 @@ on:
       - 'build_windows.py'
       - 'packaged_entry.py'
       - 'verify_windows.py'
+      - 'publish_windows_draft.py'
       - 'requirements-windows-build.txt'
       - 'photo_tool/**'
       - 'tests/**'
@@ -24,6 +25,8 @@ env:
 jobs:
   windows-x64:
     runs-on: windows-2022
+    permissions:
+      contents: write
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,6 +49,10 @@ jobs:
         run: python build_windows.py
       - name: Verify extracted ZIP, AMD64 executable and native packaged GUI
         run: python verify_windows.py
+      - name: Upload verified Windows files to a draft release
+        env:
+          QINGPIAN_RELEASE_TOKEN: ${{ github.token }}
+        run: python publish_windows_draft.py
       - name: Upload verified Windows release files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
