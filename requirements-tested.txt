@@ -1,0 +1,13 @@
+# Tested on macOS 26.6.2, Apple Silicon, Python 3.12.
+# Includes packaging dependencies for reproducing the local .app build.
+altgraph==0.17.5
+macholib==1.16.4
+numpy==2.5.4
+packaging==26.3
+pillow==12.3.0
+pillow_heif==1.8.1
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+PySide6_Essentials==6.12.0
+setuptools==84.2.1
+shiboken6==6.12.0
