@@ -321,7 +321,7 @@ py -3.12 -m venv .venv
 
 输出 `dist/windows-x64/Qingpian-0.1.1-Windows-x64.zip`、对应的 `Windows-x64-SHA256SUMS.txt` 和 `windows-verification.json`。ZIP 中包含“晴片”文件夹，完整解压后双击 `晴片.exe`。
 
-仓库的 [Windows 构建工作流](.github/workflows/windows-build.yml) 可在 Actions 中手动运行，相关源码变动也会触发。它只读取仓库，构建测试通过后保存可下载的构建产物；发布到 Release 时使用这些已核验的 ZIP 与校验文件。构建测试使用临时生成的图片。
+仓库的 [Windows 构建工作流](.github/workflows/windows-build.yml) 可在 Actions 中手动运行，相关源码变动也会触发。测试与实际 EXE 自检通过后，它会将 Windows ZIP、校验文件及验证结果上传到对应版本的**草稿 Release**，再加入同版本 Mac 包统一发布；已经公开发布的版本不会被此脚本修改。工作流使用仅限当前仓库的临时 job token，无需在源码中存放凭据。构建测试使用临时生成的图片。
 
 `verify_windows.py` 检查 ZIP 与 SHA-256、PE 的 AMD64 架构，并执行解压目录内的实际 `.exe`，测试原生 Qt 平台、JPG / HEIC 预览、默认自动导出、sRGB 和原片不变。`packaged_entry.py` 的 `--packaged-self-test` 是构建检查入口，不影响日常双击使用。
 
