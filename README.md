@@ -304,7 +304,7 @@ dist/Qingpian-0.1.1-SHA256SUMS.txt
 
 `VERSION` 记录发布版本。首发包固定使用 Qt for Python 6.8.3，以兼容最低目标系统。构建脚本写入应用版本、最低系统版本、构建依赖和源码提交；如果随附二进制要求高于 macOS 14，会终止构建。随后重新生成 ad-hoc 签名并检查完整性，最后输出 ZIP 与校验文件。Intel 构建的 ZIP 名称会使用 `x86_64`。
 
-`build/`、`dist/`、虚拟环境、生成的 `.spec` 和 `.local-archive/` 本地归档不提交到源码仓库。依赖许可文本在 `THIRD_PARTY_LICENSES.txt` 中，并随应用保留。升级构建依赖后，先在相同虚拟环境运行 `python generate_notices.py` 更新该文件；此收集步骤会从 GNU 官方 HTTPS 地址取得许可文本，通常的应用构建使用仓库中已收录的文本即可。
+`build/`、`dist/`、虚拟环境、生成的 `.spec` 和 `.local-archive/` 本地归档不提交到源码仓库。依赖许可文本在 `THIRD_PARTY_LICENSES.txt` 中，并随应用保留。升级构建依赖后，先在相同虚拟环境运行 `python generate_notices.py`：每个平台依赖的许可从实际安装的包收集；平台无关的 GNU LGPL / GPL 文本优先复用仓库已收录的官方副本，缺失时才从 GNU 官方 HTTPS 地址下载。
 
 ## 构建 Windows 64 位应用
 

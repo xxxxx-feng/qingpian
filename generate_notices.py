@@ -16,6 +16,8 @@ PACKAGES = ("Pillow", "numpy", "pillow-heif", "PySide6-Essentials", "shiboken6",
 
 
 def main():
+    destination = ROOT / "THIRD_PARTY_LICENSES.txt"
+    previous = destination.read_text(encoding="utf-8") if destination.is_file() else ""
     sections = ["Qingpian: bundled third-party licenses and notices\n"
                 "These texts apply to third-party components, not a new project-level license.\n"]
     for name in PACKAGES:
@@ -42,13 +44,17 @@ def main():
     sections.append(f"\n{'=' * 72}\nCPython {platform.python_version()}\n" + python_license.read_text(encoding="utf-8", errors="replace"))
     for name, url in (("GNU LGPL v3", "https://www.gnu.org/licenses/lgpl-3.0.txt"),
                       ("GNU GPL v3", "https://www.gnu.org/licenses/gpl-3.0.txt")):
-        request = urllib.request.Request(url, headers={"User-Agent": "Qingpian-license-collector"})
-        with urllib.request.urlopen(request, timeout=30) as response:
-            text = response.read().decode("utf-8")
+        marker = f"\n{name}\nSource: {url}\n\n"
+        if marker in previous:
+            # GNU texts are platform-independent; reuse the checked-in official copy.
+            text = previous.split(marker, 1)[1].split("\n" + "=" * 72 + "\n", 1)[0].strip()
+        else:
+            request = urllib.request.Request(url, headers={"User-Agent": "Qingpian-license-collector"})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                text = response.read().decode("utf-8")
         if "GNU" not in text or len(text) < 5000:
             raise SystemExit(f"Unexpected license response: {url}")
         sections.append(f"\n{'=' * 72}\n{name}\nSource: {url}\n\n{text}")
-    destination = ROOT / "THIRD_PARTY_LICENSES.txt"
     destination.write_text("\n".join(sections).rstrip() + "\n", encoding="utf-8")
     print(f"Collected dependency license texts: {destination.name}")
 
