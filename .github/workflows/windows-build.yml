@@ -11,6 +11,8 @@ on:
       - 'verify_windows.py'
       - 'requirements-windows-build.txt'
       - 'photo_tool/**'
+      - 'tests/**'
+      - 'generate_notices.py'
       - 'VERSION'
 
 permissions:
