@@ -11,4 +11,4 @@ dist/
 .coverage
 htmlcov/
 晴片导出/
-
+.local-archive/

@@ -8,7 +8,15 @@
 
 ![晴片全自动模式界面](docs/images/app.png)
 
-> 截图为无照片的初始界面，不包含个人照片。当前仓库提供源码，应用需要按下文安装依赖或自行构建。
+> 截图为无照片的初始界面，不包含个人照片。
+
+## Mac 版下载（无需安装 Python）
+
+**[下载晴片 v0.1.0 · Apple Silicon Mac](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.0/Qingpian-0.1.0-macOS-arm64.zip)**
+
+适用于 **M 系列芯片、macOS 14+**。解压后得到 `晴片.app`，放到桌面或“应用程序”中双击即可使用。也可在 [Release 页面](https://github.com/xxxxx-feng/qingpian/releases/tag/v0.1.0) 查看说明和 SHA-256 校验文件。
+
+此包未经过 Apple Developer ID 签名与 Apple 公证，其他 Mac 首次打开可能遇到系统来源验证提示。请确认下载来源后参考 [Apple 官方说明](https://support.apple.com/en-us/102445)。源码运行、Intel Mac 和自行构建说明见下文。
 
 ## 目录
 
@@ -280,11 +288,15 @@ QINGPIAN_SCREENSHOTS=/tmp/qingpian-screenshots \
 
 ```text
 dist/晴片.app
+dist/Qingpian-0.1.0-macOS-arm64.zip
+dist/Qingpian-0.1.0-SHA256SUMS.txt
 ```
 
 构建出的应用自带 Python、Qt 与图像处理依赖，可以复制到桌面后双击使用，无需在目标机器上另装 Python。构建架构随当前 Python 与构建机器而定；Apple Silicon 构建不代表已生成 Intel 通用版本。
 
-`build/`、`dist/`、虚拟环境和生成的 `.spec` 不提交到源码仓库。构建脚本同时收集主要依赖的元数据，第三方组件的许可证仍应随再分发产物保留。
+`VERSION` 记录发布版本。构建脚本写入应用版本、最低系统版本、构建依赖和源码提交，重新生成 ad-hoc 签名并检查完整性，最后输出 ZIP 与校验文件。Intel 构建的 ZIP 名称会使用 `x86_64`。
+
+`build/`、`dist/`、虚拟环境、生成的 `.spec` 和 `.local-archive/` 本地归档不提交到源码仓库。依赖许可文本在 `THIRD_PARTY_LICENSES.txt` 中，并随应用保留。升级构建依赖后，先在相同虚拟环境运行 `python generate_notices.py` 更新该文件；此收集步骤会从 GNU 官方 HTTPS 地址取得许可文本，通常的应用构建使用仓库中已收录的文本即可。
 
 ## 常见问题
 
