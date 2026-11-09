@@ -14,10 +14,10 @@
 
 | 系统 | 下载 | 使用方式 |
 | --- | --- | --- |
-| Windows 10 1809+ / Windows 11 · x64 | [Windows 64 位免安装版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.1/Qingpian-0.1.1-Windows-x64.zip) | 完整解压，进入“晴片”文件夹后双击 `晴片.exe` |
-| Apple Silicon Mac · macOS 14+ | [Mac 版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.1/Qingpian-0.1.1-macOS-arm64.zip) | 解压后双击 `晴片.app` |
+| Windows 10 1809+ / Windows 11 · x64 | [Windows 64 位免安装版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.2/Qingpian-0.1.2-Windows-x64.zip) | 完整解压，进入“晴片”文件夹后双击 `晴片.exe` |
+| Apple Silicon Mac · macOS 14+ | [Mac 版](https://github.com/xxxxx-feng/qingpian/releases/download/v0.1.2/Qingpian-0.1.2-macOS-arm64.zip) | 解压后双击 `晴片.app` |
 
-当前版本为 **v0.1.1**，安装包与 SHA-256 校验文件均在 [Release 页面](https://github.com/xxxxx-feng/qingpian/releases/tag/v0.1.1)。两个系统均自带运行依赖，使用时无需安装 Python，照片在本机处理。
+当前版本为 **v0.1.2**，安装包与 SHA-256 校验文件均在 [Release 页面](https://github.com/xxxxx-feng/qingpian/releases/tag/v0.1.2)。两个系统均自带运行依赖，使用时无需安装 Python，照片在本机处理。
 
 Windows 包未做 Authenticode 数字签名，首次运行可能出现来源验证提示。Mac 包未经过 Apple Developer ID 签名与 Apple 公证，其他 Mac 首次打开可能遇到来源验证提示，详见 [Apple 官方说明](https://support.apple.com/en-us/102445)。源码运行、Intel Mac 和自行构建说明见下文。
 
@@ -50,7 +50,8 @@ Windows 包未做 Authenticode 数字签名，首次运行可能出现来源验�
 | 高级预设 | 保留影楼自然光、自然提亮、清透日常、温暖人像及手动滑块 |
 | 手机照片适配 | 读取 JPG / JPEG / HEIC / HEIF，处理 EXIF 方向和受支持的色彩配置 |
 | 原尺寸输出 | 预览缩小加速，最终重新读取原片并按完整像素尺寸导出 |
-| 保留原片 | 另存 JPG；同名自动编号，重复导出也不覆盖已有文件 |
+| 保留原片 | 另存 JPG；按原文件创建日期命名，同一天加序号，重复导出不覆盖已有文件 |
+| 保留目录 | 默认扫描子文件夹，保留导入时的目录层级与名称 |
 | 批处理容错 | 单张坏文件不会中断整批；支持取消并保留已完成结果 |
 | 本地处理 | 图像处理不调用云端服务，没有照片上传接口或遥测 |
 
@@ -60,7 +61,7 @@ Windows 包未做 Authenticode 数字签名，首次运行可能出现来源验�
 - 使用 Pillow、NumPy、pillow-heif、PySide6 Essentials，完整版本范围见 [requirements.txt](requirements.txt)。
 - 已在 **Apple Silicon Mac、macOS 26.6.2、Python 3.12** 实际验证。
 - 本次 Mac 安装包以 macOS 14 为最低目标；构建时检查随附二进制的最低系统版本，实测系统为 macOS 26.6.2。其他构建请以实际依赖兼容性为准。
-- Windows x64 包在 GitHub 的 Windows Server 2022 环境构建，运行照片 / GUI 测试，并从最终 ZIP 解压实际程序，验证原生界面、JPG / HEIC 导入和自动批量导出；这些检查不等同于在所有 Windows 10 / 11 设备上的人工验收。Linux 日常桌面使用尚未经过同等验证。
+- Windows x64 包在 GitHub 的 Windows Server 2022 环境构建，运行照片 / GUI 测试，并从最终 ZIP 解压实际程序，验证原生界面、JPG / HEIC 导入和自动批量导出；这些检查不等同于在所有 Windows 10 / 11 设备上的人工验收。Linux 日常桌面使用尚未经过同等验证；若 Python 无法读取文件创建时间，当前命名规则会明确拒绝导出该文件，不使用 Unix 的元数据变更时间代替。
 - HEIC 解码依赖 pillow-heif / libheif。使用对应平台的官方预编译轮子时通常无需另外安装 Qt 或 libheif。
 
 实际验证版本记录在 [requirements-tested.txt](requirements-tested.txt)。该文件也包含构建工具，主要用于重现当前 Mac 环境，不是跨平台通用的依赖锁文件。
@@ -105,14 +106,33 @@ Windows 免安装版见上方下载区；源码运行与构建仍建议使用 Py
 .venv/bin/python app.py "/path/to/photo.jpg" "/path/to/photos"
 ```
 
-支持同时传入文件和文件夹。文件夹是否递归扫描由界面中的“包含子文件夹”选项控制，默认为关闭。
+支持同时传入文件和文件夹。文件夹是否递归扫描由界面中的“包含子文件夹”选项控制，默认开启。
 
 ## 日常使用
 
 1. **导入**：点击“添加照片”“导入文件夹”，或把照片拖进窗口。支持的照片会自动去重并默认全选。
 2. **导出**：保持“全自动自然”，点击“批量导出”并选择保存位置。
 
-工具会在选择的位置新建 **`晴片导出`** 文件夹。完成后可以点击“打开导出文件夹”。
+工具会在选择的位置新建 **`晴片导出`** 文件夹。默认包含子文件夹，导出保留导入文件夹内的层级和文件夹名称。完成后可以点击“打开导出文件夹”。
+
+导出文件按**原照片在文件系统中的创建日期**命名，日期使用本机时区；不使用调色后图片的创建时间、EXIF 拍摄日期或文件修改时间。
+
+- 同一目录当天只有一张：`2024-06-01.jpg`。
+- 同一目录当天有多张：按原片创建时间先后命名为 `2024-06-01_1.jpg`、`2024-06-01_2.jpg`，时间相同时按原路径排序。
+- 已有同名结果会保留，新结果跳过已占用的编号，不覆盖文件。
+- 不再添加原文件名或 `_晴片` 标记。输入的 JPG、JPEG、HEIC / HEIF 仍统一导出为实际的 JPG 文件。
+
+例如导入“照片”文件夹：
+
+```text
+照片/家人/旅行/IMG_0001.HEIC  →  晴片导出/家人/旅行/2024-06-01_1.jpg
+照片/家人/旅行/IMG_0002.JPG   →  晴片导出/家人/旅行/2024-06-01_2.jpg
+照片/生活/IMG_0003.JPEG      →  晴片导出/生活/2024-06-01.jpg
+```
+
+单个导入文件夹以其内部作为相对目录起点；同时导入多个独立文件夹时，各自保留一层文件夹名，重名的导入文件夹增加编号区分。只勾选其中一部分照片时，也保留导入时记录的原目录层级。直接添加单个文件时，以它所在的文件夹作为起点。
+
+文件创建日期可能在复制、下载或迁移后发生变化，因而不一定等于拍摄日期。无法读取原片创建时间时，该照片会在失败详情中说明原因，其他照片继续处理，不会擅自替换为今天或其他日期。
 
 预览是可选步骤。点击左侧某张照片即可查看处理结果，右侧会显示“柔和提亮”“逆光提亮 · 高光保护”等摘要。默认界面收起手动参数，普通使用无需展开“高级设置”。
 
@@ -192,7 +212,8 @@ Windows 免安装版见上方下载区；源码运行与构建仍建议使用 Py
 | 输出 | 普通 8 位 SDR JPG，嵌入 sRGB ICC 配置 |
 | 尺寸 | 保留原始像素尺寸；按 EXIF 旋转后宽高可能互换 |
 | 品质 | 默认 95%，可选 100% 或 85%；JPG 始终是有损格式 |
-| 文件名 | `原文件名_晴片.jpg`，重复时使用 `_晴片_2.jpg` 等编号 |
+| 文件名 | 原片文件创建日期 `YYYY-MM-DD.jpg`；同一目录同日多张为 `YYYY-MM-DD_1.jpg` 等 |
+| 目录 | 保留导入文件夹内的层级与名称，同日序号在各个目录内独立计算 |
 | 拍摄方向 | 转为实际像素方向，导出后不依赖方向标签 |
 | 色彩 | 支持 ICC → sRGB，以及使用 sRGB 传递曲线的 Display P3 NCLX HEIC |
 | HDR / 动态照片 | 不保留 HDR 增益图、Live Photo 视频、景深或其他辅助图像 |
@@ -240,14 +261,17 @@ qingpian/
 
 ```python
 from pathlib import Path
-from photo_tool.processing import Adjustments, export_batch
+from photo_tool.processing import Adjustments, collect_photos, export_batch
 
+source_roots = {}
+photos = collect_photos([Path("input")], recursive=True, source_roots=source_roots)
 successes, failures = export_batch(
-    paths=[Path("input/a.jpg"), Path("input/b.heic")],
+    paths=photos,
     output_dir=Path("output"),
     settings=Adjustments(adaptive=True),
     quality=95,
     keep_metadata=False,
+    source_roots=source_roots,
 )
 
 print("成功：", len(successes), "失败：", len(failures))
@@ -261,7 +285,7 @@ print("成功：", len(successes), "失败：", len(failures))
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-当前 **32 项自动化检查已在 Mac 验证环境通过**，覆盖：
+当前 **42 项自动化检查已在 Mac 验证环境通过**，覆盖：
 
 - 暗图与亮图采用不同曝光和色调力度。
 - 逆光类场景中的暗部主体与亮背景处理。
@@ -270,7 +294,9 @@ print("成功：", len(successes), "失败：", len(failures))
 - 预览与完整导出的自动分析一致性。
 - 无需调整参数的界面导入 → 批量导出流程。
 - JPG / HEIC 编解码、EXIF 方向、拍摄日期与 GPS 去留。
-- 同名文件、防覆盖、取消与坏文件容错。
+- 原片文件创建日期命名、同日序号、重复导出防覆盖。
+- 子目录保留、部分勾选导出、多来源同名目录隔离、隐藏元数据文件排除。
+- 取消与坏文件容错。
 
 测试使用临时生成的图像，不依赖个人照片。界面测试通过 `QT_QPA_PLATFORM=offscreen` 离屏运行。
 
@@ -296,8 +322,8 @@ QINGPIAN_SCREENSHOTS=/tmp/qingpian-screenshots \
 
 ```text
 dist/晴片.app
-dist/Qingpian-0.1.1-macOS-arm64.zip
-dist/Qingpian-0.1.1-SHA256SUMS.txt
+dist/Qingpian-0.1.2-macOS-arm64.zip
+dist/Qingpian-0.1.2-SHA256SUMS.txt
 ```
 
 构建出的应用自带 Python、Qt 与图像处理依赖，可以复制到桌面后双击使用，无需在目标机器上另装 Python。构建架构随当前 Python 与构建机器而定；Apple Silicon 构建不代表已生成 Intel 通用版本。
@@ -319,7 +345,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\python verify_windows.py
 ```
 
-输出 `dist/windows-x64/Qingpian-0.1.1-Windows-x64.zip`、对应的 `Windows-x64-SHA256SUMS.txt` 和 `windows-verification.json`。ZIP 中包含“晴片”文件夹，完整解压后双击 `晴片.exe`。
+输出 `dist/windows-x64/Qingpian-0.1.2-Windows-x64.zip`、对应的 `Windows-x64-SHA256SUMS.txt` 和 `windows-verification.json`。ZIP 中包含“晴片”文件夹，完整解压后双击 `晴片.exe`。
 
 仓库的 [Windows 构建工作流](.github/workflows/windows-build.yml) 可在 Actions 中手动运行，相关源码变动也会触发。测试与实际 EXE 自检通过后，它会将 Windows ZIP、校验文件及验证结果上传到对应版本的**草稿 Release**，再加入同版本 Mac 包统一发布；已经公开发布的版本不会被此脚本修改。工作流使用仅限当前仓库的临时 job token，无需在源码中存放凭据。构建测试使用临时生成的图片。
 

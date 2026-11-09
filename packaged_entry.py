@@ -19,16 +19,21 @@ def packaged_self_test(directory):
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtWidgets import QApplication
         from photo_tool.gui import MainWindow, STYLE
-        from photo_tool.processing import DEFAULT_PRESET
+        from photo_tool.processing import DEFAULT_PRESET, source_created_at
 
         app = QApplication.instance() or QApplication([])
         app.setStyle("Fusion")
         app.setStyleSheet(STYLE)
         yy, xx = np.mgrid[:180, :240]
         pixels = np.stack([25+xx/3, 30+yy/3, 35+xx/5], axis=2).astype(np.uint8)
-        paths = [directory/"测试暗光.jpg", directory/"测试逆光.heic"]
+        input_root = directory / "原照片"
+        (input_root / "家人").mkdir(parents=True)
+        (input_root / "旅行").mkdir()
+        paths = [input_root/"家人/测试暗光.jpg", input_root/"家人/测试逆光.heic",
+                 input_root/"旅行/测试风景.jpg"]
         Image.fromarray(pixels).save(paths[0], quality=95)
         Image.fromarray(pixels).save(paths[1], format="HEIF", quality=90)
+        Image.fromarray(pixels).save(paths[2], quality=95)
         original_hashes = [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths]
 
         def wait_until(predicate):
@@ -43,14 +48,18 @@ def packaged_self_test(directory):
         window = MainWindow()
         window.show()
         assert window.preset.currentText()==DEFAULT_PRESET
-        window.add_paths(paths)
-        wait_until(lambda: len(window.items)==2 and window.view.after is not None)
+        window.add_paths([input_root])
+        wait_until(lambda: len(window.items)==3 and window.view.after is not None)
         destination = directory/"导出结果"
         window.begin_export(paths, destination)
         wait_until(lambda: not window.exporting)
         assert not window.failures, window.failures
-        exports = sorted(destination.glob("*.jpg"))
-        assert len(exports)==2
+        exports = sorted(destination.rglob("*.jpg"))
+        assert len(exports)==3
+        days = [source_created_at(path).strftime('%Y-%m-%d') for path in paths]
+        assert days[0] == days[1], days
+        assert {path.name for path in (destination/'家人').glob('*.jpg')} == {f'{days[0]}_1.jpg', f'{days[0]}_2.jpg'}
+        assert (destination/'旅行'/f'{days[2]}.jpg').is_file()
         for path in exports:
             with Image.open(path) as image:
                 image.load()
@@ -62,7 +71,9 @@ def packaged_self_test(directory):
         assert window.grab().save(str(directory/"packaged-gui.png"))
         result = dict(status="passed", qt_platform=QGuiApplication.platformName(),
                       jpeg_heic_import=True, automatic_gui_export_count=len(exports),
-                      original_files_unchanged=True, srgb_export=True)
+                      original_files_unchanged=True, srgb_export=True,
+                      original_creation_date_filenames=True, same_day_numbering=True,
+                      original_directories_preserved=True)
         status = 0
     except Exception:
         result = dict(status="failed", traceback=traceback.format_exc())

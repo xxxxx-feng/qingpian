@@ -1,15 +1,19 @@
 import hashlib
+import os
 import tempfile
 import threading
 import unittest
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
 
 from photo_tool.processing import (Adjustments, ProcessingCancelled, SRGB_BYTES,
                                    adjust_photo, collect_photos, export_batch,
-                                   export_photo, load_photo)
+                                   export_photo, load_photo, source_created_at)
 
 
 class ProcessingTests(unittest.TestCase):
@@ -151,6 +155,101 @@ class ProcessingTests(unittest.TestCase):
         for kwargs in ({"exposure": float("nan")}, {"auto": 4}, {"intensity": -1}):
             with self.assertRaises(ValueError):
                 Adjustments(**kwargs)
+
+    def test_filename_uses_original_file_creation_not_exif_or_modified_time(self):
+        modified = datetime(2001, 2, 3, 12).timestamp()
+        os.utime(self.source, (modified, modified))
+        original_stat = self.source.stat()
+        original = self.source.read_bytes()
+        expected = datetime.fromtimestamp(original_stat.st_birthtime).strftime('%Y-%m-%d')
+        output = export_photo(self.source, self.root / 'out', Adjustments())
+        self.assertEqual(output.name, f'{expected}.jpg')
+        self.assertNotIn('_晴片', output.name)
+        self.assertEqual(self.source.read_bytes(), original)
+        self.assertEqual(self.source.stat().st_mtime_ns, original_stat.st_mtime_ns)
+        self.assertEqual(self.source.stat().st_birthtime, original_stat.st_birthtime)
+
+    def test_same_day_numbers_follow_creation_time_even_with_reversed_input(self):
+        early, late = self.root / 'early.jpg', self.root / 'late.jpg'
+        Image.new('RGB', (30, 20), (45, 60, 70)).save(early)
+        Image.new('RGB', (45, 25), (65, 70, 90)).save(late)
+        dates = {early: datetime(2024, 6, 1, 9), late: datetime(2024, 6, 1, 17)}
+        with patch('photo_tool.processing.source_created_at', side_effect=lambda p: dates[p]):
+            success, failures = export_batch([late, early], self.root / 'out', Adjustments())
+        self.assertFalse(failures)
+        self.assertEqual({p.name for p in success}, {'2024-06-01_1.jpg', '2024-06-01_2.jpg'})
+        with Image.open(self.root / 'out/2024-06-01_1.jpg') as image:
+            self.assertEqual(image.size, (30, 20))
+        with Image.open(self.root / 'out/2024-06-01_2.jpg') as image:
+            self.assertEqual(image.size, (45, 25))
+
+    def test_separate_days_are_named_separately(self):
+        second = self.root / 'second.jpg'
+        self.image.save(second)
+        dates = {self.source: datetime(2023, 12, 31, 20), second: datetime(2024, 1, 1, 8)}
+        with patch('photo_tool.processing.source_created_at', side_effect=lambda p: dates[p]):
+            success, failures = export_batch([self.source, second], self.root / 'out', Adjustments())
+        self.assertFalse(failures)
+        self.assertEqual({p.name for p in success}, {'2023-12-31.jpg', '2024-01-01.jpg'})
+
+    def test_existing_date_exports_are_preserved_and_numbers_continue(self):
+        destination = self.root / 'out'
+        destination.mkdir()
+        existing = {'2024-06-01.jpg': b'old export', '2024-06-01_1.jpg': b'another export'}
+        for name, data in existing.items():
+            (destination / name).write_bytes(data)
+        second = self.root / 'second.jpg'
+        self.image.save(second)
+        with patch('photo_tool.processing.source_created_at', return_value=datetime(2024, 6, 1, 12)):
+            success, failures = export_batch([self.source, second], destination, Adjustments())
+        self.assertFalse(failures)
+        self.assertEqual({p.name for p in success}, {'2024-06-01_2.jpg', '2024-06-01_3.jpg'})
+        for name, data in existing.items():
+            self.assertEqual((destination / name).read_bytes(), data)
+
+    def test_folder_structure_survives_exporting_only_a_nested_selection(self):
+        library = self.root / '照片'
+        nested = library / '家人/旅行'
+        nested.mkdir(parents=True)
+        first, second = nested / 'one.jpg', nested / 'two.jpeg'
+        self.image.save(first)
+        self.image.save(second)
+        roots = {}
+        photos = collect_photos([library], recursive=True, source_roots=roots)
+        with patch('photo_tool.processing.source_created_at', return_value=datetime(2024, 6, 1, 12)):
+            success, failures = export_batch([photos[0]], self.root / 'out', Adjustments(), source_roots=roots)
+        self.assertFalse(failures)
+        self.assertEqual(success, [self.root / 'out/家人/旅行/2024-06-01.jpg'])
+        self.assertTrue(first.is_file() and second.is_file())
+
+    def test_multiple_import_roots_with_the_same_name_stay_separate(self):
+        roots = {}
+        folders = [self.root / 'disk-a/照片', self.root / 'disk-b/照片']
+        for folder in folders:
+            (folder / '旅行').mkdir(parents=True)
+            self.image.save(folder / '旅行/phone.jpg')
+        photos = collect_photos(folders, recursive=True, source_roots=roots)
+        with patch('photo_tool.processing.source_created_at', return_value=datetime(2024, 6, 1, 12)):
+            success, failures = export_batch(photos, self.root / 'out', Adjustments(), source_roots=roots)
+        self.assertFalse(failures)
+        self.assertEqual({p.relative_to(self.root / 'out').as_posix() for p in success},
+                         {'照片/旅行/2024-06-01.jpg', '照片_2/旅行/2024-06-01.jpg'})
+
+    def test_hidden_metadata_files_are_not_imported_as_photos(self):
+        (self.root / '._phone.jpg').write_bytes(b'AppleDouble metadata')
+        self.assertEqual(collect_photos([self.root], recursive=True), [self.source.resolve()])
+
+    def test_missing_creation_time_is_reported_without_using_unix_ctime(self):
+        with patch('photo_tool.processing.sys.platform', 'linux'), \
+             patch.object(Path, 'stat', return_value=SimpleNamespace(st_ctime=1234567890)):
+            with self.assertRaisesRegex(ValueError, '创建时间'):
+                source_created_at(self.source)
+
+    def test_older_windows_python_can_read_creation_time_from_ctime(self):
+        stamp = datetime(2024, 6, 1, 12).timestamp()
+        with patch('photo_tool.processing.sys.platform', 'win32'), \
+             patch.object(Path, 'stat', return_value=SimpleNamespace(st_ctime=stamp)):
+            self.assertEqual(source_created_at(self.source), datetime(2024, 6, 1, 12))
 
 
 if __name__ == "__main__":

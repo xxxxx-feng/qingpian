@@ -129,6 +129,25 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.failures)
         self.assertFalse(self.window.advanced_scroll.isVisible())
 
+    def test_folder_import_keeps_nested_directories_with_default_settings(self):
+        library = self.root / '照片'
+        child = library / '家人/旅行'
+        child.mkdir(parents=True)
+        self.source.replace(child / self.source.name)
+        source = child / self.source.name
+        original = source.read_bytes()
+        self.assertTrue(self.window.recursive.isChecked())
+        self.window.add_paths([library])
+        self.wait_until(lambda: self.window.view.after is not None)
+        self.window.begin_export(list(self.window.items), self.root / 'export')
+        self.wait_until(lambda: not self.window.exporting)
+        exports = list((self.root / 'export/家人/旅行').glob('*.jpg'))
+        self.assertEqual(len(exports), 1)
+        self.assertRegex(exports[0].name, r'^\d{4}-\d{2}-\d{2}\.jpg$')
+        self.assertNotIn('_晴片', exports[0].name)
+        self.assertEqual(source.read_bytes(), original)
+        self.assertFalse(self.window.failures)
+
     def test_space_compares_original_without_changing_export_selection(self):
         self.import_photo()
         item = self.window.photo_list.currentItem()

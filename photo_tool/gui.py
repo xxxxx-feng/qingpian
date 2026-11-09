@@ -302,6 +302,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 720)
         self.setAcceptDrops(True)
         self.items = {}
+        self.source_roots = {}
         self.jobs = {}
         self.cache = OrderedDict()
         self.revision = 0
@@ -381,6 +382,7 @@ class MainWindow(QMainWindow):
         self.folder_button = button("导入文件夹", self.choose_folder)
         side.addWidget(self.folder_button)
         self.recursive = QCheckBox("包含子文件夹")
+        self.recursive.setChecked(True)
         side.addWidget(self.recursive)
         selection_row = QHBoxLayout()
         self.select_all = QCheckBox("全选")
@@ -506,7 +508,9 @@ class MainWindow(QMainWindow):
         output_layout.setContentsMargins(12, 12, 12, 12)
         output_layout.setSpacing(10)
         output_layout.addWidget(label("导出 · 原尺寸 JPG", "eyebrow"))
-        output_layout.addWidget(label("原尺寸输出 · 原片始终保留", "muted"))
+        self.export_hint = label("按原片创建日期命名 · 同日加序号\n保留原目录结构 · 原片始终保留", "muted")
+        self.export_hint.setWordWrap(True)
+        output_layout.addWidget(self.export_hint)
         self.quality = QComboBox()
         self.quality.addItem("高品质 · 95%", 95)
         self.quality.addItem("最高品质 · 100%", 100)
@@ -612,8 +616,12 @@ class MainWindow(QMainWindow):
         cancel = self.scan_cancel
         self.set_import_enabled(False)
         self.status.setText("正在扫描照片文件…")
-        self.submit(self.scan_pool, ("scan", self.scan_serial),
-                    lambda: collect_photos(paths, recursive, cancel))
+        def scan():
+            roots = {}
+            photos = collect_photos(paths, recursive, cancel, source_roots=roots)
+            return photos, roots
+
+        self.submit(self.scan_pool, ("scan", self.scan_serial), scan)
 
     def set_import_enabled(self, enabled):
         self.add_button.setEnabled(enabled)
@@ -678,7 +686,11 @@ class MainWindow(QMainWindow):
             added = 0
             first = None
             self.photo_list.blockSignals(True)
-            for path in result:
+            photos, roots = result
+            for path in photos:
+                previous = self.source_roots.get(path)
+                if previous is None or previous.is_relative_to(roots[path]):
+                    self.source_roots[path] = roots[path]
                 if path in self.items:
                     continue
                 item = QListWidgetItem(f"{path.name}\n{path.suffix[1:].upper()}")
@@ -757,6 +769,7 @@ class MainWindow(QMainWindow):
         if path is None:
             return
         item = self.items.pop(path)
+        self.source_roots.pop(path, None)
         self.photo_list.takeItem(self.photo_list.row(item))
         self.cache.pop(path, None)
         self.update_count()
@@ -813,6 +826,7 @@ class MainWindow(QMainWindow):
         cancel = self.export_cancel
         settings = self.settings()
         quality, metadata = self.quality.currentData(), self.metadata.isChecked()
+        source_roots = dict(self.source_roots)
         self.set_import_enabled(False)
         self.settings_area.setEnabled(False)
         self.reset_button.setEnabled(False)
@@ -832,7 +846,7 @@ class MainWindow(QMainWindow):
         self.status.setText(f"正在导出 0 / {len(paths)} · 正在读取第一张照片…")
         task = Task(("export",), lambda: None)
         task.function = lambda: export_batch(paths, self.output_dir, settings, quality,
-                            metadata, cancel, task.signals.progress.emit)
+                            metadata, cancel, task.signals.progress.emit, source_roots=source_roots)
         task.signals.finished.connect(self.task_finished)
         task.signals.progress.connect(self.export_progress)
         self.jobs[task.key] = task

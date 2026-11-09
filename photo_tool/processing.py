@@ -8,8 +8,10 @@ from __future__ import annotations
 import io
 import math
 import os
+import sys
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -101,7 +103,8 @@ def check_cancel(cancel: threading.Event | None):
 
 
 def collect_photos(paths: list[Path], recursive: bool = False,
-                   cancel: threading.Event | None = None) -> list[Path]:
+                   cancel: threading.Event | None = None, *,
+                   source_roots: dict[Path, Path] | None = None) -> list[Path]:
     """Resolve/deduplicate paths; never follow directory symlinks recursively."""
     found: dict[Path, None] = {}
     for given in paths:
@@ -113,12 +116,22 @@ def collect_photos(paths: list[Path], recursive: bool = False,
                 directories[:] = sorted(d for d in directories if not d.startswith("."))
                 for name in sorted(files):
                     candidate = Path(parent) / name
-                    if candidate.suffix.lower() in SUPPORTED_EXTENSIONS:
-                        found[candidate.resolve()] = None
+                    if (not name.startswith(".") and not candidate.is_symlink()
+                            and candidate.suffix.lower() in SUPPORTED_EXTENSIONS):
+                        resolved = candidate.resolve()
+                        found[resolved] = None
+                        if source_roots is not None:
+                            previous = source_roots.get(resolved)
+                            root = path.resolve()
+                            if previous is None or previous.is_relative_to(root):
+                                source_roots[resolved] = root
                 if not recursive:
                     break
         elif path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
-            found[path.resolve()] = None
+            resolved = path.resolve()
+            found[resolved] = None
+            if source_roots is not None:
+                source_roots.setdefault(resolved, resolved.parent)
     return sorted(found, key=lambda p: (p.name.casefold(), str(p)))
 
 
@@ -388,12 +401,97 @@ def adjust_photo(photo: Photo, settings: Adjustments,
     return output
 
 
+def source_created_at(path: Path) -> datetime:
+    """Original file creation time in the computer's local timezone.
+
+    Unix st_ctime is metadata-change time, so it must never be used as a
+    substitute for creation time on platforms that lack st_birthtime.
+    """
+    stat = Path(path).stat()
+    timestamp = getattr(stat, "st_birthtime", None)
+    if timestamp is None and sys.platform == "win32":
+        timestamp = stat.st_ctime  # Python < 3.12 Windows compatibility.
+    if timestamp is None or not math.isfinite(timestamp):
+        raise ValueError("无法读取原照片的文件创建时间；请在支持创建时间的 Mac 或 Windows 文件系统上导出")
+    return datetime.fromtimestamp(timestamp)
+
+
+def _export_directories(paths: list[Path], output_dir: Path,
+                        source_roots: dict[Path, Path] | None) -> list[Path]:
+    resolved = [Path(path).resolve() for path in paths]
+    known = {Path(p).resolve(): Path(root).resolve() for p, root in (source_roots or {}).items()}
+    missing = [path for path in resolved if path not in known]
+    if missing:
+        try:
+            common = Path(os.path.commonpath([str(path.parent) for path in missing]))
+            known.update({path: common for path in missing})
+        except ValueError:  # Windows inputs on different drives.
+            known.update({path: Path(path.anchor) for path in missing})
+    candidates = set(known.values())
+    roots = sorted((root for root in candidates if not any(
+        root != other and root.is_relative_to(other) for other in candidates)), key=str)
+    aliases, used = {}, set()
+    for root in roots:
+        base = root.name or root.drive.replace(":", "") or "照片"
+        name, serial = base, 2
+        while name.casefold() in used:
+            name = f"{base}_{serial}"
+            serial += 1
+        used.add(name.casefold())
+        aliases[root] = name
+    directories = []
+    for path in resolved:
+        root = next(root for root in roots if path.is_relative_to(root))
+        relative = path.parent.relative_to(root)
+        prefix = Path(aliases[root]) if len(roots) > 1 else Path()
+        directories.append(Path(output_dir) / prefix / relative)
+    return directories
+
+
+def _export_plan(paths: list[Path], output_dir: Path,
+                 source_roots: dict[Path, Path] | None,
+                 cancel: threading.Event | None) -> list[tuple]:
+    directories = _export_directories(paths, output_dir, source_roots)
+    planned = [None] * len(paths)
+    groups = {}
+    for index, (path, directory) in enumerate(zip(paths, directories)):
+        check_cancel(cancel)
+        try:
+            created = source_created_at(path)
+            day = created.strftime("%Y-%m-%d")
+            groups.setdefault((directory, day), []).append((created, str(path), index))
+        except Exception as exc:
+            planned[index] = (directory, None, str(exc) or type(exc).__name__)
+    for (directory, day), members in groups.items():
+        check_cancel(cancel)
+        try:
+            occupied = {p.name.casefold() for p in directory.iterdir()} if directory.exists() else set()
+            serial = None if len(members) == 1 and f"{day}.jpg" not in occupied else 1
+            for _, _, index in sorted(members):
+                name = f"{day}.jpg" if serial is None else f"{day}_{serial}.jpg"
+                while name.casefold() in occupied:
+                    serial = 1 if serial is None else serial + 1
+                    name = f"{day}_{serial}.jpg"
+                planned[index] = (directory, serial, "")
+                occupied.add(name.casefold())
+                serial = 1 if serial is None else serial + 1
+        except Exception as exc:
+            for _, _, index in members:
+                planned[index] = (directory, None, str(exc) or type(exc).__name__)
+    return planned
+
+
 def export_photo(path: Path, output_dir: Path, settings: Adjustments,
                  quality: int = 95, keep_metadata: bool = True,
-                 cancel: threading.Event | None = None) -> Path:
-    """Create a new JPEG exclusively; never overwrite originals or exports."""
+                 cancel: threading.Event | None = None, *,
+                 sequence: int | None = None) -> Path:
+    """Create a date-named JPEG exclusively; never overwrite any file."""
     if not 80 <= quality <= 100:
         raise ValueError("JPEG 品质必须在 80 到 100 之间")
+    check_cancel(cancel)
+    day = source_created_at(path).strftime("%Y-%m-%d")
+    if sequence is not None and sequence < 1:
+        raise ValueError("照片序号必须大于零")
     photo = load_photo(path)
     result = adjust_photo(photo, settings, cancel)
     check_cancel(cancel)
@@ -408,14 +506,14 @@ def export_photo(path: Path, output_dir: Path, settings: Adjustments,
     encoded = io.BytesIO()
     result.save(encoded, **options)
     check_cancel(cancel)
-    serial = 1
+    serial = sequence
     while True:
-        suffix = "" if serial == 1 else f"_{serial}"
-        destination = output_dir / f"{path.stem}_晴片{suffix}.jpg"
+        suffix = "" if serial is None else f"_{serial}"
+        destination = output_dir / f"{day}{suffix}.jpg"
         try:
             handle = destination.open("xb")
         except FileExistsError:
-            serial += 1
+            serial = 1 if serial is None else serial + 1
             continue
         try:
             with handle:
@@ -429,13 +527,24 @@ def export_photo(path: Path, output_dir: Path, settings: Adjustments,
 def export_batch(paths: list[Path], output_dir: Path, settings: Adjustments,
                  quality: int = 95, keep_metadata: bool = True,
                  cancel: threading.Event | None = None,
-                 progress: Callable | None = None) -> tuple[list[Path], list[tuple[Path, str]]]:
+                 progress: Callable | None = None, *,
+                 source_roots: dict[Path, Path] | None = None) -> tuple[list[Path], list[tuple[Path, str]]]:
+    """Keep imported subdirectories and number each directory/day separately."""
     successes, failures = [], []
-    for index, path in enumerate(paths):
+    if not paths or (cancel is not None and cancel.is_set()):
+        return successes, failures
+    try:
+        plan = _export_plan(paths, Path(output_dir), source_roots, cancel)
+    except ProcessingCancelled:
+        return successes, failures
+    for index, (path, (directory, sequence, planning_error)) in enumerate(zip(paths, plan)):
         if cancel is not None and cancel.is_set():
             break
         try:
-            destination = export_photo(path, output_dir, settings, quality, keep_metadata, cancel)
+            if planning_error:
+                raise ValueError(planning_error)
+            destination = export_photo(path, directory, settings, quality, keep_metadata,
+                                       cancel, sequence=sequence)
             successes.append(destination)
             error = ""
         except ProcessingCancelled:
