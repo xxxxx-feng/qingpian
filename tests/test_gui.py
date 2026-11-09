@@ -47,7 +47,8 @@ class GuiTests(unittest.TestCase):
         started = time.monotonic()
         while not predicate():
             self.app.processEvents()
-            QTest.qWait(20)
+            # Release the Python GIL so Python QRunnable work can advance on Windows.
+            time.sleep(0.02)
             if time.monotonic() - started > timeout:
                 self.fail("GUI operation timed out")
         self.app.processEvents()
