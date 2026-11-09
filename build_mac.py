@@ -22,6 +22,34 @@ from PySide6.QtWidgets import QApplication
 from photo_tool.gui import app_icon
 
 
+def verify_minimum_macos(bundle, minimum="14.0"):
+    """Reject a bundle whose native dependencies exceed the advertised target."""
+    target = tuple(int(part) for part in minimum.split(".")) + (0,)
+    magics = {b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
+              b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}
+    for path in (bundle / "Contents").rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        with path.open("rb") as handle:
+            if handle.read(4) not in magics:
+                continue
+        lines = subprocess.check_output(["/usr/bin/otool", "-l", str(path)], text=True).splitlines()
+        for index, line in enumerate(lines):
+            command = line.strip()
+            if command not in ("cmd LC_BUILD_VERSION", "cmd LC_VERSION_MIN_MACOSX"):
+                continue
+            key = "minos " if command == "cmd LC_BUILD_VERSION" else "version "
+            for entry in lines[index + 1:index + 8]:
+                if entry.strip().startswith(key):
+                    version = entry.strip().split()[1]
+                    parts = tuple(int(part) for part in version.split("."))
+                    parts += (0,) * (3 - len(parts))
+                    if parts > target:
+                        raise SystemExit(f"{path.name} requires macOS {version}; target is {minimum}. "
+                                         "Use the pinned requirements-tested.txt environment.")
+                    break
+
+
 def main():
     root = Path(__file__).resolve().parent
     os.chdir(root)
@@ -74,6 +102,7 @@ def main():
                       signing="ad-hoc", notarized=False)
     (bundle / "Contents" / "Resources" / "release-info.json").write_text(
         json.dumps(build_info, ensure_ascii=False, indent=2) + "\n")
+    verify_minimum_macos(bundle)
     # Resource changes need a new ad-hoc signature; this is not Apple notarization.
     subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", str(bundle)], check=True)
     subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(bundle)], check=True)

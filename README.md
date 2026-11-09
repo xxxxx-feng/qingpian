@@ -55,7 +55,7 @@
 - **Python 3.10 或更新版本**，建议使用 Python 3.12。
 - 使用 Pillow、NumPy、pillow-heif、PySide6 Essentials，完整版本范围见 [requirements.txt](requirements.txt)。
 - 已在 **Apple Silicon Mac、macOS 26.6.2、Python 3.12** 实际验证。
-- 本次 Mac 打包所用的 Qt / NumPy 轮子面向 macOS 14+；其他版本请以实际依赖兼容性为准。
+- 本次 Mac 安装包以 macOS 14 为最低目标；构建时检查随附二进制的最低系统版本，实测系统为 macOS 26.6.2。其他构建请以实际依赖兼容性为准。
 - 源码采用跨平台 Qt 接口；Windows / Linux 的日常桌面使用尚未经过同等实机验证。
 - HEIC 解码依赖 pillow-heif / libheif。使用对应平台的官方预编译轮子时通常无需另外安装 Qt 或 libheif。
 
@@ -277,10 +277,10 @@ QINGPIAN_SCREENSHOTS=/tmp/qingpian-screenshots \
 
 ## 构建 Mac 应用
 
-在 Mac 的虚拟环境中安装运行依赖后：
+在 Apple Silicon Mac 的 Python 3.12 虚拟环境中安装已验证的完整构建依赖：
 
 ```bash
-.venv/bin/python -m pip install 'pyinstaller>=6.16,<7'
+.venv/bin/python -m pip install -r requirements-tested.txt
 .venv/bin/python build_mac.py
 ```
 
@@ -294,7 +294,7 @@ dist/Qingpian-0.1.0-SHA256SUMS.txt
 
 构建出的应用自带 Python、Qt 与图像处理依赖，可以复制到桌面后双击使用，无需在目标机器上另装 Python。构建架构随当前 Python 与构建机器而定；Apple Silicon 构建不代表已生成 Intel 通用版本。
 
-`VERSION` 记录发布版本。构建脚本写入应用版本、最低系统版本、构建依赖和源码提交，重新生成 ad-hoc 签名并检查完整性，最后输出 ZIP 与校验文件。Intel 构建的 ZIP 名称会使用 `x86_64`。
+`VERSION` 记录发布版本。首发包固定使用 Qt for Python 6.8.3，以兼容最低目标系统。构建脚本写入应用版本、最低系统版本、构建依赖和源码提交；如果随附二进制要求高于 macOS 14，会终止构建。随后重新生成 ad-hoc 签名并检查完整性，最后输出 ZIP 与校验文件。Intel 构建的 ZIP 名称会使用 `x86_64`。
 
 `build/`、`dist/`、虚拟环境、生成的 `.spec` 和 `.local-archive/` 本地归档不提交到源码仓库。依赖许可文本在 `THIRD_PARTY_LICENSES.txt` 中，并随应用保留。升级构建依赖后，先在相同虚拟环境运行 `python generate_notices.py` 更新该文件；此收集步骤会从 GNU 官方 HTTPS 地址取得许可文本，通常的应用构建使用仓库中已收录的文本即可。
 

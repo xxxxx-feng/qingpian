@@ -3633,7 +3633,7 @@ Files: libgcc_s_seh-1.dll, libstdc++-6.dll, libwinpthread-1.dll
 
 
 ========================================================================
-PySide6-Essentials 6.12.0
+PySide6-Essentials 6.8.3
 Declared license: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 Qt for Python / Shiboken: The Qt Company Ltd. and contributors.
@@ -3642,7 +3642,7 @@ GNU LGPL v3 and GPL v3 texts are reproduced below.
 
 
 ========================================================================
-shiboken6 6.12.0
+shiboken6 6.8.3
 Declared license: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 Qt for Python / Shiboken: The Qt Company Ltd. and contributors.
